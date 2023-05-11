@@ -79,7 +79,7 @@ def get_folder_path(local_doc_id: str):
 
 
 def get_vs_path(local_doc_id: str):
-    return os.path.join(VS_ROOT_PATH, local_doc_id)
+    return local_doc_id
 
 
 def get_file_path(local_doc_id: str, doc_name: str):
@@ -183,7 +183,7 @@ async def chat(
             ],
         ),
 ):
-    vs_path = os.path.join(VS_ROOT_PATH, knowledge_base_id)
+    vs_path = knowledge_base_id
     if not os.path.exists(vs_path):
         raise ValueError(f"Knowledge base {knowledge_base_id} not found")
 
@@ -207,12 +207,7 @@ async def chat(
 
 async def stream_chat(websocket: WebSocket, knowledge_base_id: str):
     await websocket.accept()
-    vs_path = os.path.join(VS_ROOT_PATH, knowledge_base_id)
-
-    if not os.path.exists(vs_path):
-        await websocket.send_json({"error": f"Knowledge base {knowledge_base_id} not found"})
-        await websocket.close()
-        return
+    vs_path = knowledge_base_id
 
     history = []
     turn = 1

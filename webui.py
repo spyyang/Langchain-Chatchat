@@ -7,19 +7,6 @@ import nltk
  
 nltk.data.path = [NLTK_DATA_PATH] + nltk.data.path
 
-def get_vs_list():
-    lst_default = ["新建知识库"]
-    if not os.path.exists(VS_ROOT_PATH):
-        return lst_default
-    lst = os.listdir(VS_ROOT_PATH)
-    if not lst:
-        return lst_default
-    lst.sort()
-    return lst_default + lst
-
-
-vs_list = get_vs_list()
-
 embedding_model_dict_list = list(embedding_model_dict.keys())
 
 llm_model_dict_list = list(llm_model_dict.keys())
@@ -27,6 +14,18 @@ llm_model_dict_list = list(llm_model_dict.keys())
 local_doc_qa = LocalDocQA()
 
 flag_csv_logger = gr.CSVLogger()
+
+def get_vs_list():
+    lst_default = ["新建知识库"]
+    lst = local_doc_qa.get_collections()
+    if not lst:
+        return lst_default
+    lst.sort()
+    return lst + lst_default
+
+
+vs_list = get_vs_list()
+
 
 def get_answer(query, vs_path, history, mode,
                streaming: bool = STREAMING):
@@ -90,7 +89,7 @@ def reinit_model(llm_model, embedding_model, llm_history_len, use_ptuning_v2, us
 
 
 def get_vector_store(vs_id, files, history):
-    vs_path = os.path.join(VS_ROOT_PATH, vs_id)
+    vs_path = vs_id
     filelist = []
     if not os.path.exists(os.path.join(UPLOAD_ROOT_PATH, vs_id)):
         os.makedirs(os.path.join(UPLOAD_ROOT_PATH, vs_id))
@@ -111,14 +110,12 @@ def get_vector_store(vs_id, files, history):
     return vs_path, None, history + [[None, file_status]]
 
 
-
 def change_vs_name_input(vs_id, history):
     if vs_id == "新建知识库":
         return gr.update(visible=True), gr.update(visible=True), gr.update(visible=False), None, history
     else:
         file_status = f"已加载知识库{vs_id}，请开始提问"
-        return gr.update(visible=False), gr.update(visible=False), gr.update(visible=True), os.path.join(VS_ROOT_PATH,
-                                                                                                         vs_id), history + [
+        return gr.update(visible=False), gr.update(visible=False), gr.update(visible=True), vs_id, history + [
                    [None, file_status]]
 
 
@@ -149,21 +146,18 @@ block_css = """.importantButton {
 }"""
 
 webui_title = """
-# 🎉langchain-ChatGLM WebUI🎉
-👍 [https://github.com/imClumsyPanda/langchain-ChatGLM](https://github.com/imClumsyPanda/langchain-ChatGLM)
+# langchain+AnalyticDB+ChatGLM WebUI
 """
 default_vs = vs_list[0] if len(vs_list) > 0 else "为空"
-init_message = f"""欢迎使用 langchain-ChatGLM Web UI！
+init_message = f"""欢迎使用 langchain+AnalyticDB+ChatGLM Web UI！
 
 请在右侧切换模式，目前支持直接与 LLM 模型对话或基于本地知识库问答。
 
 知识库问答模式，选择知识库名称后，即可开始问答，当前知识库{default_vs}，如有需要可以在选择知识库名称后上传文件/文件夹至知识库。
-
-知识库暂不支持文件删除，该功能将在后续版本中推出。
 """
 
 model_status = init_model()
-default_path = os.path.join(VS_ROOT_PATH, vs_list[0]) if len(vs_list) > 0 else ""
+default_path = vs_list[0] if len(vs_list) > 0 else ""
 
 with gr.Blocks(css=block_css) as demo:
     vs_path, file_status, model_status, vs_list = gr.State(default_path), gr.State(""), gr.State(

@@ -1,16 +1,22 @@
 from langchain.embeddings.huggingface import HuggingFaceEmbeddings
-from langchain.vectorstores import FAISS
 from langchain.document_loaders import UnstructuredFileLoader
+from chains.modules.analyticdb import AnalyticDB
 from models.chatglm_llm import ChatGLM
 from configs.model_config import *
-import datetime
 from textsplitter import ChineseTextSplitter
 from typing import List, Tuple
-from langchain.docstore.document import Document
-import numpy as np
 from utils import torch_gc
 from tqdm import tqdm
+import os
 
+CONNECTION_STRING = AnalyticDB.connection_string_from_db_params(
+    driver=os.environ.get("PG_DRIVER", "psycopg2cffi"),
+    host=os.environ.get("PG_HOST", "localhost"),
+    port=int(os.environ.get("PG_PORT", "5432")),
+    database=os.environ.get("PG_DATABASE", "postgres"),
+    user=os.environ.get("PG_USER", "postgres"),
+    password=os.environ.get("PG_PASSWORD", "postgres"),
+)
 
 DEVICE_ = EMBEDDING_DEVICE
 DEVICE_ID = "0" if torch.cuda.is_available() else None
@@ -35,7 +41,10 @@ def load_file(filepath):
 def generate_prompt(related_docs: List[str],
                     query: str,
                     prompt_template=PROMPT_TEMPLATE) -> str:
-    context = "\n".join([doc.page_content for doc in related_docs])
+    if len(related_docs) > 0:
+        context = "\n".join([doc.page_content for doc in related_docs])
+    else:
+        context = "\n".join("无")
     prompt = prompt_template.replace("{question}", query).replace("{context}", context)
     return prompt
 
@@ -59,55 +68,6 @@ def seperate_list(ls: List[int]) -> List[List[int]]:
             ls1 = [ls[i]]
     lists.append(ls1)
     return lists
-
-
-def similarity_search_with_score_by_vector(
-        self, embedding: List[float], k: int = 4,
-) -> List[Tuple[Document, float]]:
-    scores, indices = self.index.search(np.array([embedding], dtype=np.float32), k)
-    docs = []
-    id_set = set()
-    store_len = len(self.index_to_docstore_id)
-    for j, i in enumerate(indices[0]):
-        if i == -1:
-            # This happens when not enough docs are returned.
-            continue
-        _id = self.index_to_docstore_id[i]
-        doc = self.docstore.search(_id)
-        id_set.add(i)
-        docs_len = len(doc.page_content)
-        for k in range(1, max(i, store_len-i)):
-            break_flag = False
-            for l in [i + k, i - k]:
-                if 0 <= l < len(self.index_to_docstore_id):
-                    _id0 = self.index_to_docstore_id[l]
-                    doc0 = self.docstore.search(_id0)
-                    if docs_len + len(doc0.page_content) > self.chunk_size:
-                        break_flag=True
-                        break
-                    elif doc0.metadata["source"] == doc.metadata["source"]:
-                        docs_len += len(doc0.page_content)
-                        id_set.add(l)
-            if break_flag:
-                break
-    id_list = sorted(list(id_set))
-    id_lists = seperate_list(id_list)
-    for id_seq in id_lists:
-        for id in id_seq:
-            if id == id_seq[0]:
-                _id = self.index_to_docstore_id[id]
-                doc = self.docstore.search(_id)
-            else:
-                _id0 = self.index_to_docstore_id[id]
-                doc0 = self.docstore.search(_id0)
-                doc.page_content += doc0.page_content
-        if not isinstance(doc, Document):
-            raise ValueError(f"Could not find document for id {_id}, got {doc}")
-        doc_score = min([scores[0][id] for id in [indices[0].tolist().index(i) for i in id_seq if i in indices[0]]])
-        docs.append((doc, doc_score))
-    torch_gc()
-    return docs
-
 
 class LocalDocQA:
     llm: object = None
@@ -180,18 +140,9 @@ class LocalDocQA:
                     print(f"{file} 未能成功加载")
         if len(docs) > 0:
             print("文件加载完毕，正在生成向量库")
-            if vs_path and os.path.isdir(vs_path):
-                vector_store = FAISS.load_local(vs_path, self.embeddings)
-                vector_store.add_documents(docs)
-                torch_gc()
-            else:
-                if not vs_path:
-                    vs_path = os.path.join(VS_ROOT_PATH,
-                                           f"""{os.path.splitext(file)[0]}_FAISS_{datetime.datetime.now().strftime("%Y%m%d_%H%M%S")}""")
-                vector_store = FAISS.from_documents(docs, self.embeddings)
-                torch_gc()
-
-            vector_store.save_local(vs_path)
+            AnalyticDB.from_documents(documents=docs, embedding=self.embeddings,
+                                      connection_string=CONNECTION_STRING, collection_name=vs_path)
+            torch_gc()
             return vs_path, loaded_files
         else:
             print("文件均未成功加载，请检查依赖包或替换为其他文件再次上传。")
@@ -202,14 +153,15 @@ class LocalDocQA:
                                    vs_path,
                                    chat_history=[],
                                    streaming: bool = STREAMING):
-        vector_store = FAISS.load_local(vs_path, self.embeddings)
-        FAISS.similarity_search_with_score_by_vector = similarity_search_with_score_by_vector
-        vector_store.chunk_size = self.chunk_size
+        print(vs_path)
+        vector_store = AnalyticDB.from_documents(documents=[], embedding=self.embeddings,
+                                                 connection_string=CONNECTION_STRING, collection_name=vs_path)
         related_docs_with_score = vector_store.similarity_search_with_score(query,
                                                                             k=self.top_k)
         related_docs = get_docs_with_score(related_docs_with_score)
         torch_gc()
         prompt = generate_prompt(related_docs, query)
+        print(prompt)
 
         # if streaming:
         #     for result, history in self.llm._stream_call(prompt=prompt,
@@ -230,6 +182,9 @@ class LocalDocQA:
                         "source_documents": related_docs}
             yield response, history
             torch_gc()
+
+    def get_collections(self):
+        return AnalyticDB(connection_string=CONNECTION_STRING, embedding_function=self.embeddings).get_collections()
 
 
 if __name__ == "__main__":

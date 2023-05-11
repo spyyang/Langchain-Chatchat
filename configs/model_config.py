@@ -10,9 +10,6 @@ logger.setLevel(logging.INFO)
 logging.basicConfig(format=LOG_FORMAT)
 
 embedding_model_dict = {
-    "ernie-tiny": "nghuyong/ernie-3.0-nano-zh",
-    "ernie-base": "nghuyong/ernie-3.0-base-zh",
-    "text2vec-base": "shibing624/text2vec-base-chinese",
     "text2vec": "GanymedeNil/text2vec-large-chinese",
 }
 
@@ -51,17 +48,17 @@ VS_ROOT_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), "vector_
 
 UPLOAD_ROOT_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), "content")
 
-# 基于上下文的prompt模版，请务必保留"{question}"和"{context}"
-PROMPT_TEMPLATE = """已知信息：
-{context} 
-
-根据上述已知信息，简洁和专业的来回答用户的问题。如果无法从中得到答案，请说 “根据已知信息无法回答该问题” 或 “没有提供足够的相关信息”，不允许在答案中添加编造成分，答案请使用中文。 问题是：{question}"""
-
+PROMPT_TEMPLATE = """
+任务: 根据提供的知识,专业地回答问题:"{question}"
+知识: {context} 
+要求: 1. 如果无法从中得到答案，请说 "现有知识库中无足够信息,暂时无法回答"; 2. 不允许在答案中添加编造成分; 3. 答案请使用中文。
+回答:
+"""
 # 文本分句长度
 SENTENCE_SIZE = 100
 
 # 匹配后单段上下文长度
-CHUNK_SIZE = 250
+CHUNK_SIZE = 500
 
 # LLM input history length
 LLM_HISTORY_LEN = 3
