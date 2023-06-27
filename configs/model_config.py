@@ -26,10 +26,11 @@ llm_model_dict = {
     "chatglm-6b-int4": "THUDM/chatglm-6b-int4",
     "chatglm-6b-int8": "THUDM/chatglm-6b-int8",
     "chatglm-6b": "THUDM/chatglm-6b",
+    "chatglm2-6b": "THUDM/chatglm2-6b",
 }
 
 # LLM model name
-LLM_MODEL = "chatglm-6b"
+LLM_MODEL = "chatglm2-6b"
 
 # LLM lora path，默认为空，如果有请直接指定文件夹路径
 LLM_LORA_PATH = ""
