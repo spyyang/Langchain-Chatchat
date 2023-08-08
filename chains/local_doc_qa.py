@@ -8,6 +8,7 @@ from typing import List, Tuple
 from utils import torch_gc
 from tqdm import tqdm
 import os
+from urllib.parse import quote_plus
 
 CONNECTION_STRING = AnalyticDB.connection_string_from_db_params(
     driver=os.environ.get("PG_DRIVER", "psycopg2cffi"),
@@ -15,7 +16,7 @@ CONNECTION_STRING = AnalyticDB.connection_string_from_db_params(
     port=int(os.environ.get("PG_PORT", "5432")),
     database=os.environ.get("PG_DATABASE", "postgres"),
     user=os.environ.get("PG_USER", "postgres"),
-    password=os.environ.get("PG_PASSWORD", "postgres"),
+    password=quote_plus(os.environ.get("PG_PASSWORD", "postgres")),
 )
 
 DEVICE_ = EMBEDDING_DEVICE
