@@ -1,6 +1,11 @@
 from langchain.embeddings.huggingface import HuggingFaceEmbeddings
+import dashscope
+from http import HTTPStatus
+from configs.model_config import embedding_model_dict
 
-from typing import Any, List
+from typing import Any, List, Generator
+
+DASHSCOPE_MAX_BATCH_SIZE = 25
 
 
 class MyEmbeddings(HuggingFaceEmbeddings):
@@ -32,3 +37,36 @@ class MyEmbeddings(HuggingFaceEmbeddings):
         text = text.replace("\n", " ")
         embedding = self.client.encode(text, normalize_embeddings=True)
         return embedding.tolist()
+
+
+class DashscopeEmbeddings(HuggingFaceEmbeddings):
+    def __init__(self, **kwargs: Any):
+        super().__init__(**kwargs)
+
+    def batched(self, texts: List[str], batch_size: int = DASHSCOPE_MAX_BATCH_SIZE) -> Generator[List, None, None]:
+        for i in range(0, len(texts), batch_size):
+            yield texts[i:i + batch_size]
+
+    def embed_documents(self, texts: List[str]) -> List[List[float]]:
+        result = list()
+        batch_counter = 0
+        for batch in self.batched(texts):
+            resp = dashscope.TextEmbedding.call(
+                model=dashscope.TextEmbedding.Models.text_embedding_v2,
+                input=batch,
+                api_key=embedding_model_dict['dashscope'],
+            )
+            if resp.status_code == HTTPStatus.OK:
+                for emb in resp.output['embeddings']:
+                    result.append(emb.get('embedding'))
+            batch_counter += len(batch)
+        return result
+
+    def embed_query(self, text: str) -> List[float]:
+        resp = dashscope.TextEmbedding.call(
+            model=dashscope.TextEmbedding.Models.text_embedding_v2,
+            input=text,
+            api_key=embedding_model_dict['dashscope'],
+        )
+        if resp.status_code == HTTPStatus.OK:
+            return resp.output.get('embeddings')[0].get('embedding')

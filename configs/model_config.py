@@ -11,10 +11,11 @@ logging.basicConfig(format=LOG_FORMAT)
 
 embedding_model_dict = {
     "text2vec": "GanymedeNil/text2vec-large-chinese",
+    "dashscope": os.environ.get("DASHSCOPE_API_KEY"),  # 1536
 }
 
 # Embedding model name
-EMBEDDING_MODEL = "text2vec"
+EMBEDDING_MODEL = "dashscope"
 
 # Embedding running device
 EMBEDDING_DEVICE = "cuda" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu"

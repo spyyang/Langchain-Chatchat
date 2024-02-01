@@ -1,6 +1,7 @@
 from langchain.embeddings.huggingface import HuggingFaceEmbeddings
 from langchain.document_loaders import UnstructuredFileLoader
 from chains.modules.analyticdb import AnalyticDB
+from chains.modules.embeddings import DashscopeEmbeddings
 from models.chatglm_llm import ChatGLM
 from configs.model_config import *
 from textsplitter import ChineseTextSplitter
@@ -91,8 +92,11 @@ class LocalDocQA:
                             llm_device=llm_device, use_ptuning_v2=use_ptuning_v2, use_lora=use_lora)
         self.llm.history_len = llm_history_len
 
-        self.embeddings = HuggingFaceEmbeddings(model_name=embedding_model_dict[embedding_model],
-                                                model_kwargs={'device': embedding_device})
+        if embedding_model == 'dashscope':
+            self.embeddings = DashscopeEmbeddings()
+        else:
+            self.embeddings = HuggingFaceEmbeddings(model_name=embedding_model_dict[embedding_model],
+                                                    model_kwargs={'device': embedding_device})
         self.top_k = top_k
 
     def init_knowledge_vector_store(self,
